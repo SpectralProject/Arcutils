@@ -1,12 +1,92 @@
 use std::env;
 use std::process::{exit, Command};
 
-use arcutils::builder::*;
-use arcutils::readenv::*;
+/* API */
+pub mod bootimg;
+pub mod builder;
+pub mod readenv;
+
+use bootimg::*;
+use readenv::*;
+use builder::*;
 
 const DEFAULT_ARCH: Arch = Arch::Riscv64;
 
 const BUILD_CFG: [&str; 3] = ["--release", "--debug", "--test"];
+
+fn help() {
+    print!(
+        "
+    ===cargo xtask===
+
+    Commands
+        help / ? - display this message
+
+        qemu - build arcboot and run using qemu-system-<arch>
+            [ --debug | --release ]
+            --arch [ arm | riscv | x86 ] (default is arm)
+
+        build - build arcboot
+            --src (default is cwd)
+            --output-dir (default is build/arcboot.app and build/arcutils.app)
+            --arch [ arm | riscv | x86 ] (default is arm)
+
+        debug - build arcboot in debug mode and attach gdb to the runner
+            --runner [ qemu | hw ] (default is qemu)
+
+        test - simply runs cargo test on arcboot for now
+    "
+    )
+}
+
+/*
+    UNIT TESTS
+*/
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
+    }
+}
+
+#[test]
+fn test_build_basic() {
+    let build = Build::new(Arch::Riscv64);
+    // compile boot.S. (! should auto convert {...}.s to {...}.o using prefixing)
+    build.assemble("asm/riscv64/boot.S", "build/boot.o");
+
+    // should be specifying the staticlib as well, can get it from Cargo.toml or the API
+    build.link(
+        &[
+            "build/boot.o".to_string(),
+            "deps/libneutronkern.a".to_string(),
+        ],
+        "link/riscv64/linker.ld",
+        "build/kernel.elf",
+    );
+
+    // cleanup
+    build.clean();
+}
+
+#[test]
+fn test_build_basic_chain() {
+    let build = Build::new(Arch::Riscv64);
+    build
+        .assemble("asm/riscv64/boot.S", "build/boot.o")
+        .link(
+            &[
+                "build/boot.o".to_string(),
+                "deps/libneutronkern.a".to_string(),
+            ],
+            "link/riscv64/linker.ld",
+            "build/kernel.elf",
+        )
+        .clean();
+}
 
 fn main() {
     // SECTION 0: CHECKS
@@ -144,7 +224,7 @@ fn check_build_config<'a>(to_check: &'a [String]) -> &'a str {
 }
 
 /*
-    TESTS
+    CLI TESTS
 */
 
 #[test]
