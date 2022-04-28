@@ -1,0 +1,22 @@
+aarch64-unknown-none:
+  out-dir: "build/" # build/neutron_kernel, arcboot, lib...
+
+  run:
+    backend: "qemu-system-aarch64" # by default
+    args: "-M virt -cpu cortex-a57 -nographic -serial mon:stdio" # by default
+    # note '-kernel $IMG_PATH' is handled by arcutils
+    # runs the previously built target. If no build is seen, will just use the default `arcutils build`
+
+  build:
+    args:
+      # to build a test config
+      - "--test"
+      # release config
+      - "--release"
+
+  # builds a test config and runs qemu on it
+  test:
+    profile: "dev"
+
+  debug:
+    profile: "debug"

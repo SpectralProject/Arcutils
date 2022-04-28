@@ -7,36 +7,34 @@ pub mod builder;
 pub mod readenv;
 
 use bootimg::*;
-use readenv::*;
 use builder::*;
+use readenv::*;
 
-const DEFAULT_ARCH: Arch = Arch::Riscv64;
+const DEFAULT_ARCH: Arch = Arch::RV64;
 
 const BUILD_CFG: [&str; 3] = ["--release", "--debug", "--test"];
 
+const HELP_MSG: &str = "
+Commands
+    help / ? - display this message
+
+    qemu - build arcboot and run using qemu-system-<arch>
+        [ --debug | --release ]
+        --arch [ arm | riscv | x86 ] (default is arm)
+
+    build - build arcboot
+        --src (default is cwd)
+        --output-dir (default is build/arcboot.app and build/arcutils.app)
+        --arch [ arm | riscv | x86 ] (default is arm)
+
+    debug - build arcboot in debug mode and attach gdb to the runner
+        --runner [ qemu | hw ] (default is qemu)
+
+    test - simply runs cargo test on arcboot for now
+";
+
 fn help() {
-    print!(
-        "
-    ===cargo xtask===
-
-    Commands
-        help / ? - display this message
-
-        qemu - build arcboot and run using qemu-system-<arch>
-            [ --debug | --release ]
-            --arch [ arm | riscv | x86 ] (default is arm)
-
-        build - build arcboot
-            --src (default is cwd)
-            --output-dir (default is build/arcboot.app and build/arcutils.app)
-            --arch [ arm | riscv | x86 ] (default is arm)
-
-        debug - build arcboot in debug mode and attach gdb to the runner
-            --runner [ qemu | hw ] (default is qemu)
-
-        test - simply runs cargo test on arcboot for now
-    "
-    )
+    print!("{}", HELP_MSG)
 }
 
 /*
@@ -54,7 +52,7 @@ mod tests {
 
 #[test]
 fn test_build_basic() {
-    let build = Build::new(Arch::Riscv64);
+    let build = Build::new(Arch::RV64);
     // compile boot.S. (! should auto convert {...}.s to {...}.o using prefixing)
     build.assemble("asm/riscv64/boot.S", "build/boot.o");
 
@@ -74,7 +72,7 @@ fn test_build_basic() {
 
 #[test]
 fn test_build_basic_chain() {
-    let build = Build::new(Arch::Riscv64);
+    let build = Build::new(Arch::RV64);
     build
         .assemble("asm/riscv64/boot.S", "build/boot.o")
         .link(
@@ -128,12 +126,13 @@ fn main() {
 
         // collect the arch, if not specified, assume spectro/riscv64
         if args.contains(&"aarch64".to_string()) {
-            __arch_build = Arch::Aarch64;
+            __arch_build = Arch::ARM64;
         }
 
         let mut arch_build = match __arch_build {
-            Arch::Aarch64 => "aarch64-none-elf",
-            Arch::Riscv64 => "riscv64gc-unknown-none-elf",
+            Arch::ARM64 => "aarch64-none-elf",
+            Arch::RV64 => "riscv64gc-unknown-none-elf",
+            Arch::X86_64 => todo!(),
         };
 
         // check if a build config was passed

@@ -1,8 +1,9 @@
 use std::process::Command;
 
 pub enum Arch {
-    Riscv64,
-    Aarch64,
+    RV64,
+    ARM64,
+    X86_64
 }
 
 const cargo_command: &str = "cargo";
@@ -19,14 +20,15 @@ pub struct Build {
 impl Build {
     pub fn new(arch: Arch) -> Build {
         let res = match arch {
-            Arch::Riscv64 => Build {
+            Arch::RV64 => Build {
                 assembler: RISCV64_AS.to_string(),
                 linker: RISCV64_LD.to_string(),
             },
-            Arch::Aarch64 => Build {
+            Arch::ARM64 => Build {
                 assembler: AARCH64_AS.to_string(),
                 linker: AARCH64_LD.to_string(),
             },
+            Arch::X86_64 => todo!(),
         };
 
         // remove previous build, assumed build/
@@ -144,16 +146,5 @@ const AARCH64_LD: &str = "aarch64-none-elf-ld";
 
 // experimental, build everything at once
 pub fn full_build(staticlib_dir: &str, arch: Arch) {
-    // build riscv
-    // match arch {
-    //     Arch::Riscv64 => {
-    //         let build = Build::new(Arch::Riscv64);
-    //         build.assemble("asm/riscv64/boot.S", "build/boot.o").link(
-    //             &["build/boot.o", "build/rust/*.a"],
-    //             "link/riscv64/linker.ld",
-    //             "build/kernel.elf",
-    //         );
-    //     }
-    //     Arch::Aarch64 => {}
-    // }
+    
 }
