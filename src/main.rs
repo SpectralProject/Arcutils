@@ -1,28 +1,25 @@
 use std::env;
 use std::process::{exit, Command};
 
-/* API */
 pub mod bootimg;
 pub mod builder;
 pub mod readenv;
 
-use bootimg::*;
 use builder::*;
-use readenv::*;
 
-const DEFAULT_ARCH: Arch = Arch::RV64;
-
-const BUILD_CFG: [&str; 3] = ["--release", "--debug", "--test"];
+// -------------
+// HELP
+// -------------
 
 const HELP_MSG: &str = "
 Commands
     help / ? - display this message
 
-    qemu - build arcboot and run using qemu-system-<arch>
+    qemu - build arcboot/neutron and run using qemu-system-<arch>
         [ --debug | --release ]
         --arch [ arm | riscv | x86 ] (default is arm)
 
-    build - build arcboot
+    build - build arcboot/neutron
         --src (default is cwd)
         --output-dir (default is build/arcboot.app and build/arcutils.app)
         --arch [ arm | riscv | x86 ] (default is arm)
@@ -37,54 +34,22 @@ fn help() {
     print!("{}", HELP_MSG)
 }
 
-/*
-    UNIT TESTS
-*/
+// -------------
+// CONSTANTS
+// -------------
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+const DEFAULT_ARCH: Arch = Arch::AArch64;
+const BUILD_CFG: [&str; 3] = ["--release", "--debug", "--test"];
+
+#[derive(PartialEq)]
+enum BuildTarget {
+    Neutron,
+    Arcboot,
 }
 
-#[test]
-fn test_build_basic() {
-    let build = Build::new(Arch::RV64);
-    // compile boot.S. (! should auto convert {...}.s to {...}.o using prefixing)
-    build.assemble("asm/riscv64/boot.S", "build/boot.o");
-
-    // should be specifying the staticlib as well, can get it from Cargo.toml or the API
-    build.link(
-        &[
-            "build/boot.o".to_string(),
-            "deps/libneutronkern.a".to_string(),
-        ],
-        "link/riscv64/linker.ld",
-        "build/kernel.elf",
-    );
-
-    // cleanup
-    build.clean();
-}
-
-#[test]
-fn test_build_basic_chain() {
-    let build = Build::new(Arch::RV64);
-    build
-        .assemble("asm/riscv64/boot.S", "build/boot.o")
-        .link(
-            &[
-                "build/boot.o".to_string(),
-                "deps/libneutronkern.a".to_string(),
-            ],
-            "link/riscv64/linker.ld",
-            "build/kernel.elf",
-        )
-        .clean();
-}
+// -------------
+// MAIN
+// -------------
 
 fn main() {
     // SECTION 0: CHECKS
@@ -93,8 +58,21 @@ fn main() {
 
     // Check what was run, either arcboot build | test | flash
     let args: Vec<String> = env::args().collect();
-    if args.len() <= 1 || args.len() > 3 || !allowed_commands.contains(&&args[1].as_ref()) {
+    if args.len() <= 1 || !allowed_commands.contains(&&args[1].as_ref()) {
+        help();
         exit(1);
+    }
+
+    // 1. check if --arcboot was specified
+    // 2. if not, check if --neutron was specified
+    let mut build_target: BuildTarget = BuildTarget::Arcboot;
+
+    if args.contains(&"--arcboot".to_string()) {
+        build_target = BuildTarget::Arcboot;
+    } else if args.contains(&"--neutron".to_string()) {
+        build_target = BuildTarget::Neutron;
+    } else {
+        println!("No build target specified, assuming arcboot");
     }
 
     /*
@@ -103,64 +81,15 @@ fn main() {
 
     // Take the config file kernel.build and build it
     if args[1] == "build" {
-        // by default, env path should be in support/
-        // if 'spectro' or 'pi4b' is not specified, assumee 'spectro'
-        let mut arch_build_path = "support/spectro.build";
-        if args.contains(&"pi4b".to_string()) {
-            arch_build_path = "support/pi4b.build";
-        }
-
-        let res_map = read_env(arch_build_path);
-
-        // immutable references
-        let out_dir = &res_map["OUT_DIR"];
-        let asm_files = &res_map["ASM_FILES"];
-        let linker_script = &res_map["LINK_SCRIPT"];
-        // if there are multiple asm_files and output_obj, then compile each at a time.
-        // or better, just specify asm_files and compile to out_dir/<name>.o
-        let output_objs = &res_map["OUT_OBJ"];
-        let link_objs = &res_map["LINK_OBJ"];
-        let output_img = &res_map["OUT_IMG"];
-
-        let mut __arch_build: Arch = DEFAULT_ARCH;
-
-        // collect the arch, if not specified, assume spectro/riscv64
-        if args.contains(&"aarch64".to_string()) {
-            __arch_build = Arch::ARM64;
-        }
-
-        let mut arch_build = match __arch_build {
-            Arch::ARM64 => "aarch64-none-elf",
-            Arch::RV64 => "riscv64gc-unknown-none-elf",
-            Arch::X86_64 => todo!(),
-        };
-
-        // check if a build config was passed
-        let build_config = check_build_config(args.as_slice());
-
-        // make a list of files to be linked (.o assembled and kernel .a)
-        let mut to_link = vec![];
-        // split on spaces
-        let outs: Vec<&str> = link_objs.split(' ').collect();
-        for o in outs {
-            to_link.push(o.to_string());
-        }
-
-        // debug
-        println!("to_link = {:?}", to_link);
-
-        // build
-        let build = Build::new(__arch_build)
-            .rust_build(arch_build, build_config, out_dir)
-            .assemble(asm_files, &output_objs)
-            .link(&to_link, linker_script, &output_img);
+        // 1. run cargo barm
+        Command::new("cargo").arg("barm");
     }
 
     /*
         SECTION B: ARCTEST
     */
 
-    // TODO: uses --feature arcboot and runs it on qemu
+    // Uses --features arcboot and runs it on qemu
     if args[1] == "test" {
         exit(1);
 
@@ -170,7 +99,7 @@ fn main() {
 
         Command::new("cargo")
             .arg("rustc")
-            .arg("--feature")
+            .arg("--features")
             .arg("arctest");
 
         // then run it on qemu like normal. Im not sure if the stdout will be captured, so maybe specify --nocapture above
@@ -181,10 +110,10 @@ fn main() {
         SECTION C: RUN A BUILT KERNEL IMAGE
     */
 
-    // TODO: run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o
+    // Run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o
     // if not found, will attempt to run `arcboot build` first, which should generate the output in build/
     if args[1] == "run" {
-        exit(1);
+        if build_target == BuildTarget::Arcboot {}
     }
 
     /*
@@ -202,31 +131,4 @@ fn main() {
         // OPTION 2: Recommended for neutron systems. Packages arcboot bl and neutron lib into a single filesystem (FAT32). Arcboot bl still does the job of locating the neutron image on disk, but stored on the same FAT32 partition
         // easy to get started and up, the other stuff that neutron/quantii would use, e.g. the root filesystem and other /mnt/ disks can be other partitions on the same or different disks
     }
-}
-
-// Returns the build config
-#[inline(always)]
-fn check_build_config<'a>(to_check: &'a [String]) -> &'a str {
-    for _st in to_check {
-        if to_check.contains(&"--release".to_string()) {
-            return "--release";
-        };
-        if to_check.contains(&"--debug".to_string()) {
-            return "--debug";
-        };
-        if to_check.contains(&"--test".to_string()) {
-            return "--test";
-        };
-    }
-    // default, release
-    "--release"
-}
-
-/*
-    CLI TESTS
-*/
-
-#[test]
-fn test_cmd() {
-    // set cli_args and call collect_cli_args()
 }

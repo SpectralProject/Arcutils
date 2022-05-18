@@ -32,12 +32,10 @@ pub fn read_env(env_path: &str) -> HashMap<String, String> {
     let lines = build_env.lines();
 
     let mut var_map = HashMap::new();
-    var_map.insert("OUT_DIR".to_string(), "".to_string());
-    var_map.insert("ASM_FILES".to_string(), "".to_string());
-    var_map.insert("LINK_SCRIPT".to_string(), "".to_string());
-    var_map.insert("OUT_OBJ".to_string(), "".to_string());
-    var_map.insert("OUT_IMG".to_string(), "".to_string());
-    var_map.insert("LINK_OBJ".to_string(), "".to_string());
+
+    BUILD_VARS.iter().for_each(|var| {
+        var_map.insert(var.to_string(), "".to_string());
+    });
 
     for l in lines {
         // collect any of the list, always take the last one
