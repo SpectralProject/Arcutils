@@ -125,13 +125,22 @@ fn main() {
     // Run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o when specified with --full
     if args[1] == "run" {
         if build_target == BuildTarget::Arcboot {
+            // * NOTE: no need to do this manually as QEMU does it for us
             // if fat doesnt already exist, create it
-            if !std::path::Path::new("disk.vfat").exists() {
-                create_fat();
+            if !std::path::Path::new("/dev/vdisk1").exists() {
+                create_vfat();
             }
             // if fat isnt already mounted, mount it
-            if !std::path::Path::new("mount/disk.vfat").exists() {
-                mount_fat();
+            if !std::path::Path::new("/mnt/disk.vfat").exists() {
+                mount_vfat();
+            }
+
+            // 2. just create a vdisk/ dir in cwd if not already there
+            if !std::path::Path::new("vdisk").exists() {
+                Command::new("mkdir")
+                    .arg("vdisk")
+                    .output()
+                    .expect("Couldn't create a directory for VFAT");
             }
 
             // run with ovmf or u-boot if riscv
@@ -145,7 +154,7 @@ fn main() {
                 }
                 Arch::AArch64 => {
                     // combine ovmf image
-                    join_ovmf("aarch64");
+                    // join_ovmf("aarch64");
                     // build a standard aarch64 build into build/arcboot
                     basic_build(arch);
                     // run qemu

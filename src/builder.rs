@@ -80,21 +80,22 @@ pub fn full_build() {}
 pub const QEMU_RISCV: &str = "qemu-system-riscv64";
 pub const QEMU_AARCH64: &str = "qemu-system-aarch64";
 
-pub fn create_fat() {
-    Command::new("qemu disk disk.vfat")
+pub fn create_vfat() {
+    Command::new("mkfs -t vfat /dev/vdisk1")
         .output()
-        .expect("Couldn't create VFAT");
+        .expect("Couldn't create VFAT. Is /dev/vdisk1 populated already?");
 }
 
-pub fn mount_fat() {
+pub fn mount_vfat() {
     Command::new("mount")
-        .arg("disk.vfat")
+        .arg("/dev/vdisk1 /mnt/disk.vfat")
         .output()
-        .expect("Couldn't mount VFAT");
+        .expect("Couldn't mount VFAT. Is /mnt/disk.vfat mounted already?");
 }
 
 // join ovmf into a firmware image (bin)
 // note: could prob use concat! for some of these but too many brackets
+// * I dont think this is needed rn, just pass them to QEMU separately
 pub fn join_ovmf(arch: &str) {
     let dir = std::format!("build/{arch}/");
 
@@ -108,13 +109,34 @@ pub fn join_ovmf(arch: &str) {
 
 // run arcboot on qemu with options
 pub fn run_arcboot(arch: Arch) {
-    let mut QEMU_COMMAND = Command::new(QEMU_AARCH64);
+    match arch {
+        Arch::Riscv64 => todo!(),
+        Arch::AArch64 => {
+            let mut QEMU_COMMAND = Command::new(QEMU_AARCH64);
 
-    // assumes using a disk called vfat and qemu_ovmf.bin
-    QEMU_COMMAND
-        .arg("-kernel build/arcboot")
-        .arg("-disk disk.vfat")
-        .arg("-bios qemu_ovmf.bin")
-        .output()
-        .expect("Couldn't run QEMU");
+            let code_ovmf = std::format!(
+                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/qemu_ovmf_code.fd",
+                true
+            );
+            let vars_ovmf = std::format!(
+                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/qemu_ovmf_vars.fd",
+                false
+            );
+
+            // assumes using a disk called vfat and qemu_ovmf.bin
+            QEMU_COMMAND
+                .arg("-machine virt")
+                .arg("-cpu cortex-a72")
+                .arg("-m 2048")
+                .arg("-vga std")
+                .arg("-serial stdio")
+                .arg("-kernel build/arcboot")
+                .arg("-drive file=fat:rsw:vdisk")
+                .arg(code_ovmf)
+                .arg(vars_ovmf)
+                .output()
+                .expect("Couldn't run QEMU");
+        }
+        Arch::X86_64 => todo!(),
+    };
 }
