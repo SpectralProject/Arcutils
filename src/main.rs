@@ -40,7 +40,7 @@ fn help() {
 
 const DEFAULT_ARCH: Arch = Arch::AArch64;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum BuildTarget {
     Neutron,
     Arcboot,
@@ -125,7 +125,34 @@ fn main() {
     // Run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o when specified with --full
     if args[1] == "run" {
         if build_target == BuildTarget::Arcboot {
+            // if fat doesnt already exist, create it
+            if !std::path::Path::new("disk.vfat").exists() {
+                create_fat();
+            }
+            // if fat isnt already mounted, mount it
+            if !std::path::Path::new("mount/disk.vfat").exists() {
+                mount_fat();
+            }
+
             // run with ovmf or u-boot if riscv
+            match arch {
+                Arch::Riscv64 => {
+                    // ensure U boot img exists
+                    if !std::path::Path::new("uboot.img").exists() {
+                        eprintln!("Could not find uboot.img!");
+                        exit(1);
+                    }
+                }
+                Arch::AArch64 => {
+                    // combine ovmf image
+                    join_ovmf("aarch64");
+                    // build a standard aarch64 build into build/arcboot
+                    basic_build(arch);
+                    // run qemu
+                    run_arcboot(arch);
+                }
+                Arch::X86_64 => todo!(),
+            }
         }
     }
 
