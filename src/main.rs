@@ -39,12 +39,12 @@ fn help() {
 // -------------
 
 const DEFAULT_ARCH: Arch = Arch::AArch64;
-const BUILD_CFG: [&str; 3] = ["--release", "--debug", "--test"];
 
 #[derive(PartialEq)]
 enum BuildTarget {
     Neutron,
     Arcboot,
+    Full,
 }
 
 // -------------
@@ -65,63 +65,76 @@ fn main() {
 
     // 1. check if --arcboot was specified
     // 2. if not, check if --neutron was specified
-    let mut build_target: BuildTarget = BuildTarget::Arcboot;
-
-    if args.contains(&"--arcboot".to_string()) {
-        build_target = BuildTarget::Arcboot;
+    let mut build_target: BuildTarget = if args.contains(&"--arcboot".to_string()) {
+        BuildTarget::Arcboot
     } else if args.contains(&"--neutron".to_string()) {
-        build_target = BuildTarget::Neutron;
+        BuildTarget::Neutron
+    } else if args.contains(&"--full".to_string()) {
+        BuildTarget::Full
     } else {
         println!("No build target specified, assuming arcboot");
-    }
+        BuildTarget::Arcboot
+    };
+
+    // collect arch, if not specified, use default arch
+    let arch = if args.contains(&"x86".to_string()) {
+        Arch::X86_64
+    } else if args.contains(&"riscv".to_string()) {
+        Arch::Riscv64
+    } else if args.contains(&"arm".to_string()) {
+        Arch::AArch64
+    } else {
+        DEFAULT_ARCH
+    };
 
     /*
-        SECTION A: BUILD THE KERNEL LIBRARY
+        OPTION A: BUILD THE KERNEL LIBRARY
     */
 
+    // Mostly for testing purposes, kind of like a dry run build
     // Take the config file kernel.build and build it
     if args[1] == "build" {
-        // 1. run cargo barm
-        Command::new("cargo").arg("barm");
+        // 1. run cargo barm/rv/x86
+        basic_build(arch);
     }
 
     /*
-        SECTION B: ARCTEST
+        OPTION B: ARCTEST
     */
 
     // Uses --features arcboot and runs it on qemu
     if args[1] == "test" {
-        exit(1);
-
-        let QEMU = "qemu-system-riscv64";
-
         // *NOTE: will build the kernel in `arctest` mode with its own EFI stub and set println = UART instead of fd = 1 (usually the main console)
 
         Command::new("cargo")
             .arg("rustc")
             .arg("--features")
-            .arg("arctest");
+            .arg("arctest")
+            .arg("--")
+            .arg("--nocapture")
+            .output()
+            .expect("Couldn't run cargo with arctest");
 
-        // then run it on qemu like normal. Im not sure if the stdout will be captured, so maybe specify --nocapture above
-        Command::new(QEMU).arg("");
+        Command::new(QEMU_RISCV).arg("");
     }
 
     /*
-        SECTION C: RUN A BUILT KERNEL IMAGE
+        OPTION C: RUN A BUILT KERNEL IMAGE
     */
 
-    // Run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o
-    // if not found, will attempt to run `arcboot build` first, which should generate the output in build/
+    // Run with either spectro/pi4b on QEMU using a prebuilt kernel .a and arcboot .o when specified with --full
     if args[1] == "run" {
-        if build_target == BuildTarget::Arcboot {}
+        if build_target == BuildTarget::Arcboot {
+            // run with ovmf or u-boot if riscv
+        }
     }
 
     /*
-        SECTION D: FLASH ARCBOOT BL
+        OPTION D: FLASH ARCBOOT BL
     */
 
-    // TODO: flash arcboot bl for a certain arch, arm, riscv, x86 onto a clean GPT drive as a single partition
-    // TODO: package an arcboot .exe and neutron/quantii .exe and any .config ascii files in a dir and create an ISO, then flash onto the disk as two separate partitions
+    // Flash arcboot bootloader for a certain arch, arm, riscv, x86 onto a clean GPT drive as a single partition
+    // Package an arcboot .exe and neutron/quantii .exe and any .config ascii files in a dir and create an ISO, then flash onto the disk as two separate partitions
     if args[1] == "flash" {
         Command::new("flash");
 
