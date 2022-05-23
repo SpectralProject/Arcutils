@@ -127,10 +127,13 @@ fn main() {
         if build_target == BuildTarget::Arcboot {
             // NOTE: no need to do mount a VFAT partition manually, just specify it in QEMU
 
+            // TODO: create a ~/.arcboot/vdisk and store everything there
+
             // create a vdisk/ dir in cwd if not already there
-            if !std::path::Path::new("vdisk").exists() {
+            if !std::path::Path::new(DEFAULT_ARCBOOT_VFAT_DIR).exists() {
                 Command::new("mkdir")
-                    .arg("vdisk")
+                    .arg("-p")
+                    .arg("~/.arcboot/vdisk")
                     .output()
                     .expect("Couldn't create a directory for VFAT");
             }
@@ -145,19 +148,33 @@ fn main() {
                     }
                 }
                 Arch::AArch64 => {
+                    if !std::path::Path::new(&(DEFAULT_ARCBOOT_VFAT_DIR.to_owned() + "/EFI/aarch64")).exists() {
+                        Command::new("mkdir")
+                            .arg("-p")
+                            .arg("~/.arcboot/vdisk/EFI/aarch64")
+                            .output()
+                            .expect("Couldn't create EFI/aarch64");
+                    }
                     // if vdisk/EFI/aarch64/OVMF.fd doesnt exist, copy it from build/aarch64/OVMF.fd
-                    if !std::path::Path::new("vdisk/EFI/aarch64/OVMF.fd").exists() {
+                    if !std::path::Path::new(&(DEFAULT_ARCBOOT_VFAT_DIR.to_owned() + "/EFI/aarch64/OVMF.fd")).exists() {
                         Command::new("cp")
                             .arg("build/aarch64/OVMF.fd")
-                            .arg("vdisk/EFI/aarch64/OVMF.fd")
+                            .arg("~/.arcboot/vdisk/EFI/aarch64/OVMF.fd")
                             .output()
                             .expect("Couldn't copy OVMF boot image for QEMU VFAT partition. Does it exist at the default path?");
                     }
 
                     // build a standard aarch64 build into build/arcboot
                     basic_build(arch);
+
+                    let mut debug_mode = false;
+
+                    if args.contains(&"--debug".to_string()) {
+                        debug_mode = true;
+                    }
+
                     // run qemu
-                    run_arcboot(arch);
+                    run_arcboot(arch, debug_mode);
                 }
                 Arch::X86_64 => todo!(),
             }
@@ -169,7 +186,10 @@ fn main() {
     */
 
     if cmd == "debug" {
-
+        Command::new("lldb")
+            .arg("")
+            .output()
+            .expect("Couldn't run the debugger. Is LLDB in path or installed? Also check QEMU is running with debug mode (-s -S)");
     }
 
     /*

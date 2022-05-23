@@ -107,24 +107,28 @@ pub fn join_ovmf(arch: &str) {
         .expect("Couldn't create OVMF combined image");
 }
 
+pub const DEFAULT_ARCBOOT_VFAT_DIR: &str = "~/.arcboot/vdisk";
+
 // run arcboot on qemu with options
-pub fn run_arcboot(arch: Arch) {
+pub fn run_arcboot(arch: Arch, debug_mode: bool) {
     match arch {
         Arch::Riscv64 => todo!(),
         Arch::AArch64 => {
             let mut QEMU_COMMAND = Command::new(QEMU_AARCH64);
 
             let code_ovmf = std::format!(
-                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/qemu_ovmf_code.fd",
+                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/OVMF.fd",
                 true
             );
             let vars_ovmf = std::format!(
-                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/qemu_ovmf_vars.fd",
+                "-drive if=pflash,format=raw,readonly={},file=build/aarch64/VARS.fd",
                 false
             );
 
+            // IF RUNNING IN DEBUG MODE, PASS -s -S to QEMU
+
             // assumes using a disk called vfat and qemu_ovmf.bin
-            QEMU_COMMAND
+            let mut cmd = QEMU_COMMAND
                 .arg("-machine virt")
                 .arg("-cpu cortex-a72")
                 .arg("-m 2048")
@@ -133,9 +137,13 @@ pub fn run_arcboot(arch: Arch) {
                 .arg("-kernel build/arcboot")
                 .arg("-drive file=fat:rsw:vdisk")
                 .arg(code_ovmf)
-                .arg(vars_ovmf)
-                .output()
-                .expect("Couldn't run QEMU");
+                .arg(vars_ovmf);
+
+            if debug_mode {
+                cmd = cmd.arg("-s -S");
+            }
+
+            cmd.output().expect("Couldn't run QEMU");
         }
         Arch::X86_64 => todo!(),
     };
