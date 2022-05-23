@@ -1,3 +1,6 @@
+[alias]
+install_neutron = "build && cp build/arc /sys/bin/arc"
+
 [build]
 out-dir = "build"
 
